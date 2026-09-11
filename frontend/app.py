@@ -116,10 +116,13 @@ with st.sidebar:
                 try:
 
                     response = requests.post(
-                        f"{API_URL}/upload",
-                        files=files,
-                        timeout=180,
-                    )
+    f"{API_URL}/chat",
+    json={
+        "question": prompt,
+        "chat_history": st.session_state.messages,
+    },
+    timeout=300,
+)
 
                     if response.status_code == 200:
 
