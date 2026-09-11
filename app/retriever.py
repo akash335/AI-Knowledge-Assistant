@@ -32,7 +32,10 @@ def build_vector_store(pdf_path):
         "index.faiss"
     )
 
-    os.makedirs(VECTOR_DB_PATH, exist_ok=True)
+    os.makedirs(
+        VECTOR_DB_PATH,
+        exist_ok=True
+    )
 
     if os.path.exists(index_file):
 
@@ -51,7 +54,9 @@ def build_vector_store(pdf_path):
             embeddings
         )
 
-    db.save_local(VECTOR_DB_PATH)
+    db.save_local(
+        VECTOR_DB_PATH
+    )
 
     print(
         f"✅ Indexed {filename} ({len(chunks)} chunks)"
@@ -68,7 +73,10 @@ def ensure_vector_store():
     if os.path.exists(index_file):
         return
 
-    os.makedirs(VECTOR_DB_PATH, exist_ok=True)
+    os.makedirs(
+        VECTOR_DB_PATH,
+        exist_ok=True
+    )
 
     data_dir = "data"
 
@@ -76,9 +84,9 @@ def ensure_vector_store():
         return
 
     pdfs = [
-        os.path.join(data_dir, f)
-        for f in os.listdir(data_dir)
-        if f.lower().endswith(".pdf")
+        os.path.join(data_dir, filename)
+        for filename in os.listdir(data_dir)
+        if filename.lower().endswith(".pdf")
     ]
 
     for pdf in pdfs:
@@ -95,6 +103,7 @@ def retrieve(state):
     )
 
     if not os.path.exists(index_file):
+
         return {
             "documents": []
         }
