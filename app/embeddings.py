@@ -2,11 +2,12 @@ from functools import lru_cache
 
 import numpy as np
 from fastembed import TextEmbedding
+from langchain_core.embeddings import Embeddings
 
 from app.config import EMBEDDING_MODEL
 
 
-class FastEmbedWrapper:
+class FastEmbedWrapper(Embeddings):
 
     def __init__(self):
         self.model = TextEmbedding(
