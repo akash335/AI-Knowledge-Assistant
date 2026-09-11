@@ -4,7 +4,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 
-from app.embeddings import embeddings
+from app.embeddings import get_embeddings
 from app.config import VECTOR_DB_PATH
 
 
@@ -25,10 +25,14 @@ def build_vector_store(pdf_path):
 
     chunks = splitter.split_documents(docs)
 
+    embeddings = get_embeddings()
+
     index_file = os.path.join(
         VECTOR_DB_PATH,
         "index.faiss"
     )
+
+    os.makedirs(VECTOR_DB_PATH, exist_ok=True)
 
     if os.path.exists(index_file):
 
@@ -54,7 +58,48 @@ def build_vector_store(pdf_path):
     )
 
 
+def ensure_vector_store():
+
+    index_file = os.path.join(
+        VECTOR_DB_PATH,
+        "index.faiss"
+    )
+
+    if os.path.exists(index_file):
+        return
+
+    os.makedirs(VECTOR_DB_PATH, exist_ok=True)
+
+    data_dir = "data"
+
+    if not os.path.exists(data_dir):
+        return
+
+    pdfs = [
+        os.path.join(data_dir, f)
+        for f in os.listdir(data_dir)
+        if f.lower().endswith(".pdf")
+    ]
+
+    for pdf in pdfs:
+        build_vector_store(pdf)
+
+
 def retrieve(state):
+
+    ensure_vector_store()
+
+    index_file = os.path.join(
+        VECTOR_DB_PATH,
+        "index.faiss"
+    )
+
+    if not os.path.exists(index_file):
+        return {
+            "documents": []
+        }
+
+    embeddings = get_embeddings()
 
     vectorstore = FAISS.load_local(
         VECTOR_DB_PATH,

@@ -96,7 +96,7 @@ threadpoolctl==3.6.0
 tiktoken==0.14.0
 tokenizers==0.23.2
 toml==0.10.2
-torch==2.14.0
+sentence-transformers==6.0.1
 tqdm==4.70.1
 transformers==5.17.0
 truststore==0.10.4
