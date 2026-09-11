@@ -111,3 +111,4 @@ xxhash==4.0.1
 yarl==1.24.5
 zstandard==0.25.0
 langchain-huggingface==1.2.2
+langchain-groq==1.1.3
