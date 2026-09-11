@@ -3,10 +3,14 @@ import requests
 import streamlit as st
 
 
+# ==========================================================
+# CONFIG
+# ==========================================================
+
 API_URL = os.getenv(
     "API_URL",
     "https://ai-knowledge-assistant-ewuq.onrender.com"
-)
+).rstrip("/")
 
 
 st.set_page_config(
@@ -16,6 +20,10 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+
+# ==========================================================
+# CUSTOM CSS
+# ==========================================================
 
 st.markdown(
     """
@@ -38,9 +46,17 @@ st.markdown(
 )
 
 
+# ==========================================================
+# TITLE
+# ==========================================================
+
 st.title("🤖 AI Knowledge Assistant")
 st.caption("Powered by LangGraph • FAISS • Groq")
 
+
+# ==========================================================
+# SESSION STATE
+# ==========================================================
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -54,22 +70,61 @@ with st.sidebar:
 
     st.title("📚 Knowledge Base")
 
-    os.makedirs(
-        "data",
-        exist_ok=True,
-    )
+    # ------------------------------------------------------
+    # Get documents from backend
+    # ------------------------------------------------------
 
-    pdfs = sorted(
-        [
-            f
-            for f in os.listdir("data")
-            if f.lower().endswith(".pdf")
-        ]
-    )
+    try:
+
+        response = requests.get(
+            f"{API_URL}/documents",
+            timeout=30,
+        )
+
+        if response.status_code == 200:
+
+            document_data = response.json()
+
+            pdfs = sorted(
+                document_data.get(
+                    "documents",
+                    []
+                )
+            )
+
+        else:
+
+            pdfs = []
+
+    except Exception:
+
+        # Fallback to PDFs bundled with Streamlit app
+        os.makedirs(
+            "data",
+            exist_ok=True,
+        )
+
+        pdfs = sorted(
+            [
+                f
+                for f in os.listdir("data")
+                if f.lower().endswith(".pdf")
+            ]
+        )
+
+
+    # ------------------------------------------------------
+    # PDF count
+    # ------------------------------------------------------
 
     st.success(
         f"{len(pdfs)} PDF(s) Indexed"
     )
+
+
+    # ------------------------------------------------------
+    # Indexed documents
+    # ------------------------------------------------------
 
     with st.expander(
         "📄 Indexed Documents",
@@ -79,12 +134,24 @@ with st.sidebar:
         if pdfs:
 
             for pdf in pdfs:
-                st.write(f"• {pdf}")
+
+                st.write(
+                    f"• {pdf}"
+                )
 
         else:
-            st.info("No PDFs indexed.")
+
+            st.info(
+                "No PDFs indexed."
+            )
+
 
     st.divider()
+
+
+    # ======================================================
+    # UPLOAD PDF
+    # ======================================================
 
     st.subheader("Upload PDF")
 
@@ -93,6 +160,7 @@ with st.sidebar:
         type=["pdf"],
         help="Maximum 200 MB",
     )
+
 
     if uploaded:
 
@@ -109,52 +177,119 @@ with st.sidebar:
                 )
             }
 
+
             with st.spinner(
-                "Indexing document..."
+                "Uploading and indexing document..."
             ):
 
                 try:
 
+                    # IMPORTANT:
+                    # Upload goes to /upload,
+                    # NOT /chat.
+
                     response = requests.post(
-    f"{API_URL}/chat",
-    json={
-        "question": prompt,
-        "chat_history": st.session_state.messages,
-    },
-    timeout=300,
-)
+                        f"{API_URL}/upload",
+                        files=files,
+                        timeout=300,
+                    )
+
+
+                    # --------------------------------------------------
+                    # Successful upload
+                    # --------------------------------------------------
 
                     if response.status_code == 200:
 
                         data = response.json()
 
-                        if data["status"] == "exists":
+                        status = data.get(
+                            "status",
+                            ""
+                        )
+
+                        filename = data.get(
+                            "filename",
+                            uploaded.name,
+                        )
+
+
+                        if status == "exists":
 
                             st.warning(
-                                "This PDF is already indexed."
+                                f"📄 {filename} is already indexed."
+                            )
+
+                        elif status == "success":
+
+                            st.success(
+                                f"✅ {filename} uploaded and indexed successfully."
                             )
 
                         else:
 
                             st.success(
-                                "PDF indexed successfully."
+                                "✅ PDF uploaded successfully."
                             )
 
+
+                        # Refresh sidebar document list
                         st.rerun()
+
+
+                    # --------------------------------------------------
+                    # Backend error
+                    # --------------------------------------------------
 
                     else:
 
+                        try:
+
+                            error_data = response.json()
+
+                            error_message = error_data.get(
+                                "detail",
+                                response.text,
+                            )
+
+                        except Exception:
+
+                            error_message = response.text
+
+
                         st.error(
-                            response.text
+                            f"Upload error: {error_message}"
                         )
+
+
+                except requests.exceptions.Timeout:
+
+                    st.error(
+                        "⏱️ Upload timed out. "
+                        "The PDF may be large or indexing is still taking too long."
+                    )
+
+
+                except requests.exceptions.ConnectionError:
+
+                    st.error(
+                        "❌ Could not connect to the backend."
+                    )
+
 
                 except Exception as e:
 
                     st.error(
-                        f"Upload error: {e}"
+                        f"❌ Upload error: {e}"
                     )
 
+
     st.divider()
+
+
+    # ======================================================
+    # CLEAR CHAT
+    # ======================================================
 
     if st.button(
         "🗑 Clear Chat",
@@ -189,7 +324,7 @@ if not st.session_state.messages:
 
 
 # ==========================================================
-# HISTORY
+# CHAT HISTORY
 # ==========================================================
 
 for message in st.session_state.messages:
@@ -201,6 +336,11 @@ for message in st.session_state.messages:
         st.markdown(
             message["content"]
         )
+
+
+        # --------------------------------------------------
+        # Sources
+        # --------------------------------------------------
 
         if message.get("sources"):
 
@@ -216,7 +356,7 @@ for message in st.session_state.messages:
 
 
 # ==========================================================
-# INPUT
+# CHAT INPUT
 # ==========================================================
 
 prompt = st.chat_input(
@@ -224,18 +364,37 @@ prompt = st.chat_input(
 )
 
 
+# ==========================================================
+# CHAT REQUEST
+# ==========================================================
+
 if prompt:
 
-    st.session_state.messages.append({
-        "role": "user",
-        "content": prompt,
-    })
+    # ------------------------------------------------------
+    # Add current user message
+    # ------------------------------------------------------
 
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    st.session_state.messages.append(
+        {
+            "role": "user",
+            "content": prompt,
+        }
+    )
 
-    # Send only previous conversation turns.
-    # Current question is sent separately.
+
+    with st.chat_message(
+        "user"
+    ):
+
+        st.markdown(
+            prompt
+        )
+
+
+    # ------------------------------------------------------
+    # Send ONLY previous conversation turns
+    # ------------------------------------------------------
+
     history = [
         {
             "role": m["role"],
@@ -244,11 +403,21 @@ if prompt:
         for m in st.session_state.messages[:-1]
     ]
 
-    with st.chat_message("assistant"):
+
+    # ------------------------------------------------------
+    # Assistant response
+    # ------------------------------------------------------
+
+    with st.chat_message(
+        "assistant"
+    ):
 
         placeholder = st.empty()
 
-        with st.spinner("Thinking..."):
+
+        with st.spinner(
+            "Thinking..."
+        ):
 
             try:
 
@@ -261,21 +430,36 @@ if prompt:
                     timeout=180,
                 )
 
+
                 response.raise_for_status()
 
+
                 data = response.json()
+
+
+                # --------------------------------------------------
+                # Answer
+                # --------------------------------------------------
 
                 answer = data.get(
                     "answer",
                     "I couldn't find that information.",
                 )
 
+
                 placeholder.markdown(
                     answer
                 )
 
+
+                # --------------------------------------------------
+                # Sources
+                # --------------------------------------------------
+
                 sources = []
+
                 seen = set()
+
 
                 for source in data.get(
                     "sources",
@@ -287,9 +471,11 @@ if prompt:
                         "Unknown",
                     )
 
+
                     page = source.get(
                         "page"
                     )
+
 
                     if page is not None:
 
@@ -302,17 +488,26 @@ if prompt:
 
                         display = filename
 
+
                     if display not in seen:
 
-                        seen.add(display)
+                        seen.add(
+                            display
+                        )
 
                         sources.append(
                             display
                         )
 
+
+                # --------------------------------------------------
+                # Display sources
+                # --------------------------------------------------
+
                 if sources:
 
                     st.divider()
+
 
                     with st.expander(
                         "📚 Sources"
@@ -324,23 +519,45 @@ if prompt:
                                 f"📄 {source}"
                             )
 
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": answer,
-                    "sources": sources,
-                })
+
+                # --------------------------------------------------
+                # Save assistant message
+                # --------------------------------------------------
+
+                st.session_state.messages.append(
+                    {
+                        "role": "assistant",
+                        "content": answer,
+                        "sources": sources,
+                    }
+                )
+
+
+            # --------------------------------------------------
+            # Connection error
+            # --------------------------------------------------
 
             except requests.exceptions.ConnectionError:
 
                 placeholder.error(
-                    "❌ API server is not running."
+                    "❌ API server is not reachable."
                 )
+
+
+            # --------------------------------------------------
+            # Timeout
+            # --------------------------------------------------
 
             except requests.exceptions.Timeout:
 
                 placeholder.error(
                     "⏱️ Request timed out."
                 )
+
+
+            # --------------------------------------------------
+            # Other error
+            # --------------------------------------------------
 
             except Exception as e:
 
