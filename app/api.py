@@ -3,14 +3,12 @@ from pydantic import BaseModel
 import os
 import shutil
 
-from app.graph import graph
-from app.retriever import build_vector_store
-
 
 app = FastAPI(
     title="AI Knowledge Assistant",
     version="1.0.0",
 )
+
 
 UPLOAD_DIR = "data"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -30,6 +28,32 @@ def root():
     }
 
 
+@app.get("/documents")
+def documents():
+
+    try:
+
+        pdfs = sorted(
+            [
+                f
+                for f in os.listdir(UPLOAD_DIR)
+                if f.lower().endswith(".pdf")
+            ]
+        )
+
+        return {
+            "documents": pdfs,
+            "count": len(pdfs),
+        }
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e),
+        )
+
+
 @app.post("/chat")
 def chat(request: ChatRequest):
 
@@ -43,6 +67,9 @@ def chat(request: ChatRequest):
         )
 
     try:
+
+        # Heavy imports happen only when a chat request is made
+        from app.graph import graph
 
         result = graph.invoke({
             "question": question,
@@ -106,10 +133,14 @@ async def upload(
     try:
 
         with open(filepath, "wb") as buffer:
+
             shutil.copyfileobj(
                 file.file,
                 buffer,
             )
+
+        # Heavy import happens only during upload
+        from app.retriever import build_vector_store
 
         build_vector_store(filepath)
 
