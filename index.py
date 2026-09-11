@@ -1,3 +1,9 @@
+import os
 from app.retriever import build_vector_store
 
-build_vector_store("data/sample.pdf")
+DATA_DIR = "data"
+
+for file in os.listdir(DATA_DIR):
+    if file.endswith(".pdf"):
+        print(f"Indexing {file}...")
+        build_vector_store(os.path.join(DATA_DIR, file))
